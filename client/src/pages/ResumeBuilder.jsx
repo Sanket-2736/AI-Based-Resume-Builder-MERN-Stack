@@ -3,6 +3,14 @@ import { Link, useParams } from 'react-router-dom';
 import { dummyResumeData } from '../assets/assets';
 import { ArrowLeftIcon, Briefcase, ChevronLeft, ChevronRight, FileText, FolderIcon, GraduationCap, Sparkles, User } from 'lucide-react';
 import PersonalInfoForm from '../components/PersonalInfoForm'
+import ResumePreview from '../components/ResumePreview';
+import TemplateSelector from '../components/TemplateSelector';
+import ColorPicker from '../components/ColorPicker';
+import ProfessionalSummaryForm from '../components/ProfessionalSummaryForm';
+import ExperienceForm from '../components/ExperienceForm';
+import EducationForm from '../components/EducationForm';
+import ProjectForm from '../components/ProjectForm';
+import SkillsForm from '../components/SkillsForm';
 const ResumeBuilder = () => {
   const [resumeData, setResumeData] = useState({
     _id: '',
@@ -20,12 +28,18 @@ const ResumeBuilder = () => {
   const {resumeId} = useParams()
 
   const loadExsistingData = async () => {
-    const resume = dummyResumeData.find(resume => resume._id = resumeId);
-    if(resume){
-      setResumeData(resume);
-      document.title = resume.title;
-    }
+  const resume = dummyResumeData.find(resume => resume._id === resumeId);
+
+  if (resume) {
+    setResumeData(prev => ({
+      ...prev,     
+      ...resume   
+    }));
+
+    document.title = resume.title;
   }
+};
+
 
   const [activeSectionIndex, setActiveSectionIndex] = useState(0);
   const [removeBackground, setRemoveBackground] = useState(false);
@@ -66,8 +80,9 @@ const ResumeBuilder = () => {
 
               {/* section navigation */}
               <div className='flex justify-between items-center mb-6 border-b border-gray-300 py-1' >
-                <div>
-
+                <div className='flex items-centermb-6 gap-2'>
+                  <TemplateSelector selectedTemplate={resumeData.template} onChange={(template) => setResumeData(prev => ({...prev, template}))} />
+                  <ColorPicker selectedColor={resumeData.accent_color} onChange={(color) => setResumeData(prev => ({...prev, accent_color : color}))} />
                 </div>
                 <div className='flex items-center'>
                   {
@@ -92,13 +107,77 @@ const ResumeBuilder = () => {
                   setRemoveBackground={setRemoveBackground}
                   />
                 )}
+                {activeSection.id === 'summary' && (
+                  <ProfessionalSummaryForm 
+                    data={resumeData.professional_summary} 
+                    onChange={(value) =>
+                      setResumeData(prev => ({
+                        ...prev,
+                        professional_summary: value
+                      }))
+                    }
+                  />
+                )}
+
+                {activeSection.id === 'experience' && (
+                  <ExperienceForm 
+                    data={resumeData.experience} 
+                    onChange={(value) =>
+                      setResumeData(prev => ({
+                        ...prev,
+                        experience: value
+                      }))
+                    }
+                  />
+                )}
+
+                {activeSection.id === 'skills' && (
+                  <SkillsForm 
+                    data={resumeData.skills} 
+                    onChange={(value) =>
+                      setResumeData(prev => ({
+                        ...prev,
+                        skills: value
+                      }))
+                    }
+                  />
+                )}
+
+                {activeSection.id === 'projects' && (
+                  <ProjectForm 
+                    data={resumeData.project} 
+                    onChange={(value) =>
+                      setResumeData(prev => ({
+                        ...prev,
+                        project: value
+                      }))
+                    }
+                  />
+                )}
+
+                {activeSection.id === 'education' && (
+                  <EducationForm 
+                    data={resumeData.education} 
+                    onChange={(value) =>
+                      setResumeData(prev => ({
+                        ...prev,
+                        education: value
+                      }))
+                    }
+                  />
+                )}
               </div>
             </div>
           </div>
 
           {/* right panel */}
-          <div>
+          <div className='lg:col-span-7 max-lg:mt-6'>
+                <div>
+                  {/* buttons */}
+                </div>
 
+                {/* resume preview */}
+                <ResumePreview data={resumeData} template={resumeData.template} accentColor={resumeData.accent_color}  />
           </div>
         </div>
       </div>

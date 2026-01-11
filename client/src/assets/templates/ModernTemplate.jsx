@@ -10,6 +10,8 @@ const ModernTemplate = ({ data, accentColor }) => {
 		});
 	};
 
+	const image = data.personal_info?.image;
+
 	return (
 		<div className="max-w-4xl mx-auto bg-white text-gray-800">
 			{/* Header */}
@@ -19,6 +21,13 @@ const ModernTemplate = ({ data, accentColor }) => {
 				</h1>
 
 				<div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-sm ">
+					{image && (
+						<img
+						src={typeof image === "string" ? image : URL.createObjectURL(image)}
+						alt="Profile"
+						className="w-28 h-28 rounded-full object-cover border-4 border-white"
+						/>
+					)}
 					{data.personal_info?.email && (
 						<div className="flex items-center gap-2">
 							<Mail className="size-4" />
