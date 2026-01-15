@@ -1,26 +1,58 @@
 import { LockIcon, Mail, User2Icon } from 'lucide-react'
-import React from 'react'
+import React, { useEffect } from 'react'
+import api from '../congifs/api';
+import { useDispatch } from 'react-redux';
+import { login } from '../app/features/authSlice';
+import toast from 'react-hot-toast';
+import {useNavigate} from 'react-router-dom'
+import { useSelector } from 'react-redux';
 
 const Login = () => {
   const query = new URLSearchParams(window.location.search);
-    const urlstate = query.get('state')
+  const urlstate = query.get('state')
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+  const { token, loading } = useSelector(state => state.auth);
+
+  useEffect(() => {
+    if (!loading && token) {
+      navigate('/app');
+    }
+  }, [token, loading]);
+
+
+
   const [state, setState] = React.useState(urlstate || "login")
     
-    const [formData, setFormData] = React.useState({
-        name: '',
-        email: '',
-        password: ''
-    })
+  const [formData, setFormData] = React.useState({
+    name: '',
+    email: '',
+    password: ''
+  })
 
-    const handleSubmit = async (e) => {
-        e.preventDefault()
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    try {
+      const { data } = await api.post(`/api/users/${state}`, formData);
 
+      if (!data.success) {
+        toast.error(data.message);
+        return;
+      }
+
+      dispatch(login(data));
+      localStorage.setItem('token', data.token);
+      toast.success(data.message);
+      navigate('/app')
+    } catch (error) {
+      toast.error(error?.response?.data?.message || error.message)
     }
+  }
 
-    const handleChange = (e) => {
-        const { name, value } = e.target
-        setFormData(prev => ({ ...prev, [name]: value }))
-    }
+  const handleChange = (e) => {
+    const { name, value } = e.target
+    setFormData(prev => ({ ...prev, [name]: value }))
+  }
 
   return (
     <form onSubmit={handleSubmit} className="flex shadow items-center justify-center min-h-screen bg-gray-50">
@@ -40,8 +72,11 @@ const Login = () => {
             <input
               type="text"
               name="name"
+              value={formData.name}
+              onChange={handleChange}
               placeholder="Name"
               className="w-full border-none outline-none"
+              required
             />
           </div>
         )}
@@ -50,8 +85,12 @@ const Login = () => {
           <Mail size={13} color="#687280" />
           <input
             type="email"
+            name="email"
+            value={formData.email}
+            onChange={handleChange}
             placeholder="Email id"
             className="w-full border-none outline-none"
+            required
           />
         </div>
 
@@ -59,8 +98,12 @@ const Login = () => {
           <LockIcon size={16} color="#687280" />
           <input
             type="password"
+            name="password"
+            value={formData.password}
+            onChange={handleChange}
             placeholder="Password"
             className="w-full border-none outline-none"
+            required
           />
         </div>
 
@@ -91,8 +134,7 @@ const Login = () => {
 
       </div>
     </form>
-
   )
 }
 
-export default Login
+export default Login;

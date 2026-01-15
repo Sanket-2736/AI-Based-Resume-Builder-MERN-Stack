@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 
 const ResumeSchema = new mongoose.Schema({
-    userId : {type : mongoose.Schema.Types.ObjectId, ref : 'User'},
+    userId : {type : mongoose.Schema.Types.ObjectId, ref : 'User', required : true},
     title : {type : String, default : 'Untitled Document'},
     template : {type : String, default : 'classic'},
     accent_color : {type : String, default : '#3B82F6'},
@@ -22,7 +22,7 @@ const ResumeSchema = new mongoose.Schema({
         {
             company : {type: String},
             position : {type: String},
-            start_Date : {type: String},
+            start_date : {type: String},
             end_date : {type: String},
             description : {type: String},
             is_current : {type: Boolean},

@@ -7,7 +7,7 @@ import protect from '../middleware/authMiddleware.js';
 
 router.post('/register', registeredUser);
 router.post('/login', loginUser);
-router.post('/data', protect, getUserById);
-router.post('/resumes', protect, getUserResume);
+router.get('/data', protect, getUserById);
+router.get('/resumes', protect, getUserResume);
 
 export default router;

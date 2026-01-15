@@ -49,13 +49,13 @@ export const registeredUser = async (req, res) => {
 export const loginUser = async (req, res) => {
     try {
         const {email, password} = req.body;
+        console.log(req.body)
         if(!email || !password){
             return res.json({
                 success : false,
                 message : "All fields required!"
             });
         }
-
             
         const user = await User.findOne({email});
 

@@ -1,7 +1,58 @@
-import { Sparkles } from 'lucide-react'
-import React from 'react'
+import { Loader2, Sparkles } from 'lucide-react'
+import React, { useState } from 'react'
+import toast from 'react-hot-toast';
+import { useSelector } from 'react-redux'
+import api from '../congifs/api';
 
-const ProfessionalSummaryForm = ({data, onChange, setResumeData}) => {
+const ProfessionalSummaryForm = ({data, onChange}) => {
+    const {token, user} = useSelector(state=>state.auth);
+    const [generating, setGenerating] = useState(false);
+
+    const generateSummary = async () => {
+    try {
+        console.log("⚡ Generate Summary clicked");
+        console.log("📝 Current Summary Input:", data);
+
+        setGenerating(true);
+
+        const prompt = `enhance my professional summary : ${data}`;
+        console.log("📤 Prompt being sent to AI:", prompt);
+
+        console.log("🚀 Sending request to AI API...");
+        const res = await api.post(
+            `/api/ai/enhance-pro-sum`,
+            { userContent: prompt },
+            { headers: { Authorization: token } }
+        );
+
+        console.log("✅ AI API Response:", res.data);
+
+        const enhanced = res.data.enhancedContent;
+
+        if (!enhanced) {
+            console.error("❌ AI returned empty summary");
+            toast.error("AI failed to generate summary");
+            return;
+        }
+
+        console.log("✨ Enhanced Summary:", enhanced);
+
+        // ✅ Update parent via onChange
+        onChange(enhanced);
+
+        console.log("📌 Summary updated in parent state");
+
+    } catch (error) {
+        console.error("❌ Error generating summary:", error);
+        toast.error('Internal server error');
+    } finally {
+        setGenerating(false);
+        console.log("🔁 Summary generation finished");
+    }
+};
+
+
+
   return (
     <div className='space-y-4'>
         <div className='items-center flex justify-between'>
@@ -10,9 +61,9 @@ const ProfessionalSummaryForm = ({data, onChange, setResumeData}) => {
                 <p className='text-sm text-gray-500'>Add summary for your resume here.</p>
             </div>
 
-            <button className='flex items-center gap-2 px-3 py-1 text-sm bg-purple-100 text-purple-700 rounded hover:bg-purple-200 transition-colors'>
-                <Sparkles className='size-4'/>
-                AI Enhance
+            <button disabled={generating} onClick={generateSummary} className='flex items-center gap-2 px-3 py-1 text-sm bg-purple-100 text-purple-700 rounded hover:bg-purple-200 transition-colors'>
+                {generating ? (<Loader2 className='size-4 animate-spin' />) : (<Sparkles className='size-4' />)}
+                {generating ? 'Enhancing..' : 'AI Enhance'}
             </button>
         </div>
 

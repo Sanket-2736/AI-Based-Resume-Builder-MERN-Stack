@@ -3,6 +3,8 @@ import { useParams } from 'react-router-dom'
 import { dummyResumeData } from '../assets/assets';
 import ResumePreview from '../components/ResumePreview';
 import { ArrowLeftIcon, Loader } from 'lucide-react';
+import toast from 'react-hot-toast';
+import api from '../congifs/api';
 
 const Preview = () => {
   const {resumeId} = useParams();
@@ -11,8 +13,14 @@ const Preview = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   const loadResume = async() => {
-    setResumeData(dummyResumeData.find(resume => resume._id === resumeId || null));
-    setIsLoading(false);
+    try {
+      const {data} = await api.get(`api/resumes/public/${resumeId}`);
+      setResumeData(data.resume);
+      toast.success(data.message)
+    } catch (error) {
+      console.log(error);
+      toast.error("Internal server error!");
+    }
   }
 
   useEffect(()=>{

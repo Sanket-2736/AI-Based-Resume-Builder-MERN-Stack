@@ -1,12 +1,25 @@
-import { FilePenLineIcon, PencilIcon, PlusIcon, Trash2Icon, UploadCloudIcon, XIcon } from 'lucide-react'
+import { FilePenLineIcon, LoaderCircle, LoaderCircleIcon, PencilIcon, PlusIcon, Trash2Icon, UploadCloudIcon, XIcon } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
 import { dummyResumeData } from '../assets/assets';
 import { useNavigate } from 'react-router-dom';
+import { useSelector } from 'react-redux';
+import api from '../congifs/api';
+import toast from 'react-hot-toast';
+import pdfToText from 'react-pdftotext'
 
 const Dashboard = () => {
+  const {user, token} = useSelector(state => state.auth);
   const [allResumes, setAllResumes] = useState([]);
   const loadAllResumes = async () => {
-    setAllResumes(dummyResumeData);
+    try {
+      const {data} = await api.get('/api/users/resumes', {headers : {
+        Authorization : token
+      }});
+      setAllResumes(data.resumes);
+    } catch (error) {
+      console.log(error)
+      toast.error('Internal server error!')
+    }
   }
   const [title, setTitle] = useState('');
   const [resume, setResume] = useState(null);
@@ -17,24 +30,71 @@ const Dashboard = () => {
 
   const createResume = async (event) => {
     event.preventDefault();
-    setShowCreateResume(false);
-    navigate(`/app/builder/res123`);
+    try {
+      const {data} = await api.post('/api/resumes/create', {title}, {headers : {
+        Authorization : token
+      }});
+      setAllResumes(prev => [...prev, data.resume]);
+      setTitle('');
+      setShowCreateResume(false);
+      navigate(`/app/builder/${data.resume._id}`);
+    } catch (error) {
+      console.log(error)
+      toast.error('Internal server error!')
+    }
   }
+  const [isLoading, setIsLoading]= useState(false);
 
   const uploadResume = async (event) => {
     event.preventDefault();
-    setShowUploadResume(false);
-    navigate(`/app/builder/res123`);
+    setIsLoading(true);
+    try {
+      const resumeText = await pdfToText(resume);
+      const {data} = await api.post('/api/ai/upload-resume', {title, resumeText}, {headers : {
+        Authorization : token
+      }});
+      setTitle('');
+      setResume(null);
+      setShowUploadResume(false);
+      navigate(`/app/builder/${data.resumeId}`)
+    } catch (error) {
+      console.log(error)
+      toast.error('Internal server error!')
+    }
+    setIsLoading(false);
   }
 
   const editTitle = async (event) => {
     event.preventDefault();
+    try {
+      const {data} = await api.put(`/api/resumes/update`, {resumeId : editResumeId, resumeData : {title}}, {headers : {
+          Authorization: token
+        }});
+
+      setAllResumes(allResumes.map(resume => resume._id === editResumeId ? {...resume, title} : resume));
+      setTitle('');
+      setEditResumeId('')
+      toast.success(data.message);
+    } catch (error) {
+      console.log(Error);
+      toast.error('Internal server error!');
+    }
   }
 
   const deleteResume = async (resumeId) => {
     const confirm = window.confirm('Are you sure to delete this resume?');
-    if(confirm){
-      setAllResumes(prev => prev.filter(resume => resume._id !== resumeId));
+    try {
+      if(confirm){
+        setAllResumes(prev => prev.filter(resume => resume._id !== resumeId));
+        const {data} = await api.delete(`/api/resumes/delete/${resumeId}`, {headers : {
+          Authorization: token
+        }});
+        setAllResumes(allResumes.filter(resume => resume._id !== resumeId))
+        toast.success(data.message);
+      }
+    } catch (error) {
+      console.log(Error);
+      toast.error('Internal server error!');
     }
   }
 
@@ -123,7 +183,10 @@ const Dashboard = () => {
                 
               </div>
 
-              <button className='w-full py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors'>Upload Resume</button>
+              <button disabled={isLoading} className='flex justify-center items-center w-full py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors'>
+                {isLoading && <LoaderCircleIcon className='animate-spin size-4 text-white' />} 
+                {isLoading ? 'Uploading...' : 'Upload Resume'}
+              </button>
               <XIcon className='absolute top-4 right-4 hover:text-slate-6 cursor-pointer transition-colors00 text-slate-400' onClick={() => {setEditResumeId(false); setTitle('')}} />
             </div>
           </form>
