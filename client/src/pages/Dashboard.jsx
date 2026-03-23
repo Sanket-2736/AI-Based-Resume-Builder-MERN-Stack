@@ -1,212 +1,296 @@
-import { FilePenLineIcon, LoaderCircle, LoaderCircleIcon, PencilIcon, PlusIcon, Trash2Icon, UploadCloudIcon, XIcon } from 'lucide-react'
+import { FilePenLineIcon, LoaderCircleIcon, PencilIcon, PlusIcon, Trash2Icon, UploadCloudIcon, XIcon } from 'lucide-react'
 import React, { useEffect, useState } from 'react'
-import { dummyResumeData } from '../assets/assets';
 import { useNavigate } from 'react-router-dom';
 import { useSelector } from 'react-redux';
 import api from '../congifs/api';
 import toast from 'react-hot-toast';
 import pdfToText from 'react-pdftotext'
 
+const COLORS = ['#9333ea', '#d97706', '#dc2626', '#0284c7', '#16a34a'];
+
+const Modal = ({ title, onClose, onSubmit, children }) => (
+  <div
+    className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+    onClick={onClose}
+  >
+    <div
+      className="relative bg-white rounded-xl shadow-xl w-full max-w-sm p-6"
+      onClick={e => e.stopPropagation()}
+    >
+      <h2 className="text-lg font-semibold text-slate-800 mb-5">{title}</h2>
+      <form onSubmit={onSubmit}>
+        {children}
+      </form>
+      <button
+        type="button"
+        onClick={onClose}
+        className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition-colors"
+      >
+        <XIcon className="size-5" />
+      </button>
+    </div>
+  </div>
+);
+
 const Dashboard = () => {
-  const {user, token} = useSelector(state => state.auth);
+  const { user } = useSelector(state => state.auth);
   const [allResumes, setAllResumes] = useState([]);
-  const loadAllResumes = async () => {
-    try {
-      const {data} = await api.get('/api/users/resumes', {headers : {
-        Authorization : token
-      }});
-      setAllResumes(data.resumes);
-    } catch (error) {
-      console.log(error)
-      toast.error('Internal server error!')
-    }
-  }
+  const [loading, setLoading] = useState(true);
   const [title, setTitle] = useState('');
   const [resume, setResume] = useState(null);
   const [editResumeId, setEditResumeId] = useState('');
-  const [showCreateResume, setShowCreateResume] = useState(true);
+  const [showCreateResume, setShowCreateResume] = useState(false);
   const [showUploadResume, setShowUploadResume] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const navigate = useNavigate();
 
-  const createResume = async (event) => {
-    event.preventDefault();
+  const loadAllResumes = async () => {
     try {
-      const {data} = await api.post('/api/resumes/create', {title}, {headers : {
-        Authorization : token
-      }});
+      const { data } = await api.get('/api/users/resumes');
+      setAllResumes(data.resumes || []);
+    } catch (error) {
+      toast.error('Failed to load resumes');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const createResume = async (e) => {
+    e.preventDefault();
+    try {
+      const { data } = await api.post('/api/resumes/create', { title });
       setAllResumes(prev => [...prev, data.resume]);
       setTitle('');
       setShowCreateResume(false);
       navigate(`/app/builder/${data.resume._id}`);
-    } catch (error) {
-      console.log(error)
-      toast.error('Internal server error!')
+    } catch {
+      toast.error('Failed to create resume');
     }
-  }
-  const [isLoading, setIsLoading]= useState(false);
+  };
 
-  const uploadResume = async (event) => {
-    event.preventDefault();
-    setIsLoading(true);
+  const uploadResume = async (e) => {
+    e.preventDefault();
+    setIsUploading(true);
     try {
       const resumeText = await pdfToText(resume);
-      const {data} = await api.post('/api/ai/upload-resume', {title, resumeText}, {headers : {
-        Authorization : token
-      }});
+      const { data } = await api.post('/api/ai/upload-resume', { title, resumeText });
+      if (!data.success) { toast.error(data.message); return; }
       setTitle('');
       setResume(null);
       setShowUploadResume(false);
-      navigate(`/app/builder/${data.resumeId}`)
-    } catch (error) {
-      console.log(error)
-      toast.error('Internal server error!')
+      navigate(`/app/builder/${data.resumeId}`);
+    } catch {
+      toast.error('Failed to parse resume');
+    } finally {
+      setIsUploading(false);
     }
-    setIsLoading(false);
-  }
+  };
 
-  const editTitle = async (event) => {
-    event.preventDefault();
+  const editTitle = async (e) => {
+    e.preventDefault();
     try {
-      const {data} = await api.put(`/api/resumes/update`, {resumeId : editResumeId, resumeData : {title}}, {headers : {
-          Authorization: token
-        }});
-
-      setAllResumes(allResumes.map(resume => resume._id === editResumeId ? {...resume, title} : resume));
+      const formdata = new FormData();
+      formdata.append('resumeId', editResumeId);
+      formdata.append('resumeData', JSON.stringify({ title }));
+      const { data } = await api.put('/api/resumes/update', formdata);
+      setAllResumes(prev => prev.map(r => r._id === editResumeId ? { ...r, title } : r));
       setTitle('');
-      setEditResumeId('')
-      toast.success(data.message);
-    } catch (error) {
-      console.log(Error);
-      toast.error('Internal server error!');
+      setEditResumeId('');
+      toast.success('Title updated');
+    } catch {
+      toast.error('Failed to update title');
     }
-  }
+  };
 
   const deleteResume = async (resumeId) => {
-    const confirm = window.confirm('Are you sure to delete this resume?');
+    if (!window.confirm('Delete this resume? This cannot be undone.')) return;
+    setAllResumes(prev => prev.filter(r => r._id !== resumeId));
     try {
-      if(confirm){
-        setAllResumes(prev => prev.filter(resume => resume._id !== resumeId));
-        const {data} = await api.delete(`/api/resumes/delete/${resumeId}`, {headers : {
-          Authorization: token
-        }});
-        setAllResumes(allResumes.filter(resume => resume._id !== resumeId))
-        toast.success(data.message);
-      }
-    } catch (error) {
-      console.log(Error);
-      toast.error('Internal server error!');
+      await api.delete(`/api/resumes/delete/${resumeId}`);
+      toast.success('Resume deleted');
+    } catch {
+      toast.error('Failed to delete resume');
+      loadAllResumes();
     }
-  }
+  };
 
-  const colors = ['#9333ea', '#d97706', '#dc2626', '#0284c7', '#16a34a']
+  const closeCreate = () => { setShowCreateResume(false); setTitle(''); };
+  const closeUpload = () => { setShowUploadResume(false); setTitle(''); setResume(null); };
+  const closeEdit = () => { setEditResumeId(''); setTitle(''); };
 
-  useEffect(()=>{
-    loadAllResumes()
-  }, [])
+  useEffect(() => { loadAllResumes(); }, []);
+
   return (
-    <div className='max-w-7xl mx-auto px-4 py-8'>
-      <p className='text-2xl font-medium mb-6 bg-gradient-to-r from-slate-600 to-slate-700 bg-clip-text text-transparent sm:hidden' >Welcome, John Doe</p>
+    <div className="max-w-7xl mx-auto px-4 py-10">
 
-      <div className='flex gap-4'>
-        <button onClick={() => setShowCreateResume(true)} className='w-full bg-white sm:max-w-36 h-48 flex flex-col items-center justify-center rounded-lg gap-2 text-slate-600 border border-dashed border-slate-300 group group-hover:border-indigo-500 hover:shadow-lg transition-all duration-300 cursor-pointer'>
-          <PlusIcon className='size-11 transition-all duration-300 p-2.5 bg-gradient-to-br from-indigo-300 text-white to-indigo-500 rounded-full'/>
-          <p className='text-sm group-hover:text-indigo-600 transition-all duration-300'>Create Resume</p>
+      {/* Header */}
+      <div className="mb-8">
+        <h1 className="text-2xl font-semibold text-slate-800">
+          Welcome back, <span className="text-green-600">{user?.name?.split(' ')[0] || 'there'}</span>
+        </h1>
+        <p className="text-slate-500 text-sm mt-1">Manage your resumes or create a new one.</p>
+      </div>
+
+      {/* Action cards */}
+      <div className="flex gap-4 flex-wrap mb-6">
+        <button
+          onClick={() => setShowCreateResume(true)}
+          className="w-36 h-48 flex flex-col items-center justify-center rounded-xl gap-2.5 text-slate-600 border-2 border-dashed border-slate-200 hover:border-indigo-400 hover:shadow-md transition-all duration-200 bg-white group cursor-pointer"
+        >
+          <div className="size-11 flex items-center justify-center rounded-full bg-gradient-to-br from-indigo-400 to-indigo-600 group-hover:scale-105 transition-transform">
+            <PlusIcon className="size-5 text-white" />
+          </div>
+          <p className="text-sm font-medium group-hover:text-indigo-600 transition-colors">New Resume</p>
         </button>
 
-        <button onClick={()=>{setShowUploadResume(true)}} className='w-full bg-white sm:max-w-36 h-48 flex flex-col items-center justify-center rounded-lg gap-2 text-slate-600 border border-dashed border-slate-300 group group-hover:border-purple-500 hover:shadow-lg transition-all duration-300 cursor-pointer'>
-          <UploadCloudIcon className='size-11 transition-all duration-300 p-2.5 bg-gradient-to-br from-purple-300 text-white to-purple-500 rounded-full'/>
-          <p className='text-sm group-hover:text-purple-600 transition-all duration-300'>Upload Existing</p>
+        <button
+          onClick={() => setShowUploadResume(true)}
+          className="w-36 h-48 flex flex-col items-center justify-center rounded-xl gap-2.5 text-slate-600 border-2 border-dashed border-slate-200 hover:border-purple-400 hover:shadow-md transition-all duration-200 bg-white group cursor-pointer"
+        >
+          <div className="size-11 flex items-center justify-center rounded-full bg-gradient-to-br from-purple-400 to-purple-600 group-hover:scale-105 transition-transform">
+            <UploadCloudIcon className="size-5 text-white" />
+          </div>
+          <p className="text-sm font-medium group-hover:text-purple-600 transition-colors">Import PDF</p>
         </button>
       </div>
 
-      <hr className='border-slate-700 my-6 sm:w-[305px]' />
+      {/* Divider */}
+      {allResumes.length > 0 && (
+        <div className="flex items-center gap-3 mb-6">
+          <hr className="flex-1 border-slate-200" />
+          <span className="text-xs text-slate-400 uppercase tracking-wider">Your Resumes</span>
+          <hr className="flex-1 border-slate-200" />
+        </div>
+      )}
 
-      <div className='grid grid-cols-2 sm:flex flex-wrap gap-4'>
-        {
-          allResumes.map((resume, index) => {
-            const baseColor = colors[index%colors.length];
+      {/* Resume grid */}
+      {loading ? (
+        <div className="flex items-center gap-2 text-slate-400 py-10">
+          <LoaderCircleIcon className="animate-spin size-5" />
+          <span className="text-sm">Loading resumes...</span>
+        </div>
+      ) : allResumes.length === 0 ? (
+        <div className="text-center py-16 text-slate-400">
+          <FilePenLineIcon className="size-12 mx-auto mb-3 opacity-30" />
+          <p className="text-sm">No resumes yet. Create your first one above.</p>
+        </div>
+      ) : (
+        <div className="flex flex-wrap gap-4">
+          {allResumes.map((resume, index) => {
+            const color = COLORS[index % COLORS.length];
             return (
-              <button key={index} onClick={() => navigate(`/app/builder/${resume._id}`)} className='relative w-full sm:max-w-36 h-48 flex flex-col items-center justify-center rounded-lg gap-2 border group hover:shadow-lg transition-all duration-300 cursor-pointer' style={{background : `linear-gradient(135deg, ${baseColor}10, ${baseColor}40)`, borderColor: baseColor + '40'}}>
-                <FilePenLineIcon className='size-7 group-hover:scale-105 transition-all' style={{color : baseColor}} />
-                <p className='text-sm group-hover:scale-105 transition-all px-2 text-center' style={{color : baseColor}}>{resume.title}</p>
-                <p className='absolute bottom-1 text-[11px] text-slate-400 group-hover:text-slate-500 transition-all duration-300 text-center px-2' style={{color: baseColor + '90'}}>
-                  Updated on {new Date(resume.updatedAt).toLocaleDateString()}
+              <button
+                key={resume._id}
+                onClick={() => navigate(`/app/builder/${resume._id}`)}
+                className="relative w-36 h-48 flex flex-col items-center justify-center rounded-xl gap-2 border group hover:shadow-lg transition-all duration-200 cursor-pointer overflow-hidden"
+                style={{ background: `linear-gradient(135deg, ${color}10, ${color}30)`, borderColor: color + '50' }}
+              >
+                <FilePenLineIcon className="size-7 group-hover:scale-105 transition-transform" style={{ color }} />
+                <p className="text-sm font-medium px-3 text-center leading-tight line-clamp-2" style={{ color }}>
+                  {resume.title}
+                </p>
+                <p className="absolute bottom-2 text-[10px] text-center px-2" style={{ color: color + '99' }}>
+                  {new Date(resume.updatedAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
                 </p>
 
-                <div onClick={e => e.stopPropagation()} className='absolute top-1 right-1 group-hover:flex items-center hidden'>
-                  <Trash2Icon onClick={() => deleteResume(resume._id)} className='size-7 p-1.5 hover:bg-white/50 rounded text-slate-700 transition-colors' />
-                  <PencilIcon onClick={() => {setEditResumeId(resume._id); setTitle(resume.title)}} className='size-7 p-1.5 hover:bg-white/50 rounded text-slate-700 transition-colors' />
+                {/* Hover actions */}
+                <div
+                  onClick={e => e.stopPropagation()}
+                  className="absolute top-1.5 right-1.5 hidden group-hover:flex items-center gap-0.5"
+                >
+                  <button
+                    onClick={() => { setEditResumeId(resume._id); setTitle(resume.title); }}
+                    className="p-1.5 hover:bg-white/60 rounded-md transition-colors"
+                    title="Rename"
+                  >
+                    <PencilIcon className="size-3.5 text-slate-600" />
+                  </button>
+                  <button
+                    onClick={() => deleteResume(resume._id)}
+                    className="p-1.5 hover:bg-white/60 rounded-md transition-colors"
+                    title="Delete"
+                  >
+                    <Trash2Icon className="size-3.5 text-slate-600" />
+                  </button>
                 </div>
               </button>
-            )
-          })
-        }
-      </div>
+            );
+          })}
+        </div>
+      )}
 
-      {
-        showCreateResume && (
-          <form onSubmit={createResume} onClick={() => setShowCreateResume(false)}  className='fixed inset-0 bg-black/70 backdrop-blur bg-opacity-50 z-10 flex items-center justify-center'>
-            <div className='relative bg-slate-50 border shadow-md rounded-lg w-full max-w-sm p-6' onClick={e => e.stopPropagation()}>
-              <h2 className='text-xl font-bold mb-4'>Create a Resume</h2>
-              <input value={title} onChange={(e) => setTitle(e.target.value)} type='text' placeholder='Enter resume title' className='border border-slate-200 w-full px-4 py-2 mb-4 focus:border-green-600 ring-green-600' required />
-              <button className='w-full py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors'>Create Resume</button>
-              <XIcon className='absolute top-4 right-4 hover:text-slate-6 cursor-pointer transition-colors00 text-slate-400' onClick={() => {setShowCreateResume(false); setTitle('')}} />
-            </div>
-          </form>
-        )
-      }
+      {/* Create modal */}
+      {showCreateResume && (
+        <Modal title="Create a new resume" onClose={closeCreate} onSubmit={createResume}>
+          <input
+            value={title}
+            onChange={e => setTitle(e.target.value)}
+            type="text"
+            placeholder="e.g. Software Engineer Resume"
+            className="border border-slate-200 w-full px-4 py-2.5 rounded-lg mb-4 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+            required
+            autoFocus
+          />
+          <button className="w-full py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors">
+            Create Resume
+          </button>
+        </Modal>
+      )}
 
-      {
-        showUploadResume && (
-          <form onSubmit={uploadResume} onClick={() => setShowUploadResume(false)}  className='fixed inset-0 bg-black/70 backdrop-blur bg-opacity-50 z-10 flex items-center justify-center'>
-            <div className='relative bg-slate-50 border shadow-md rounded-lg w-full max-w-sm p-6' onClick={e => e.stopPropagation()}>
-              <h2 className='text-xl font-bold mb-4'>Upload Resume</h2>
-              <input value={title} onChange={(e) => setTitle(e.target.value)} type='text' placeholder='Enter resume title' className='border border-slate-200 w-full px-4 py-2 mb-4 focus:border-green-600 ring-green-600' required />
+      {/* Upload modal */}
+      {showUploadResume && (
+        <Modal title="Import from PDF" onClose={closeUpload} onSubmit={uploadResume}>
+          <input
+            value={title}
+            onChange={e => setTitle(e.target.value)}
+            type="text"
+            placeholder="Resume title"
+            className="border border-slate-200 w-full px-4 py-2.5 rounded-lg mb-4 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+            required
+          />
+          <label
+            htmlFor="resume-upload"
+            className="flex flex-col items-center justify-center gap-2 border-2 border-dashed border-slate-200 hover:border-green-400 rounded-lg p-6 mb-4 cursor-pointer transition-colors"
+          >
+            {resume ? (
+              <p className="text-sm text-green-700 font-medium">{resume.name}</p>
+            ) : (
+              <>
+                <UploadCloudIcon className="size-10 text-slate-300" />
+                <p className="text-sm text-slate-500">Click to select a PDF</p>
+              </>
+            )}
+          </label>
+          <input id="resume-upload" type="file" accept=".pdf" onChange={e => setResume(e.target.files[0])} className="hidden" required />
+          <button
+            disabled={isUploading}
+            className="w-full py-2.5 bg-green-600 hover:bg-green-700 disabled:opacity-60 text-white rounded-lg text-sm font-medium transition-colors flex items-center justify-center gap-2"
+          >
+            {isUploading && <LoaderCircleIcon className="animate-spin size-4" />}
+            {isUploading ? 'Parsing with AI...' : 'Import Resume'}
+          </button>
+        </Modal>
+      )}
 
-              <div>
-                <label htmlFor='resume-upload' className='w-full py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors'>
-                  Select resume file
-                  <div className='flex flex-col items-center justify-center gap-2 border group text-slate-400 bo-slate-400 border-dashed rounded-md p-4 py-10 my-4 hover:border-green-400 cursor-pointer transition-colors '>
-                  {
-                    resume ? (
-                      <p className='text-green-700'>{resume.name}</p>
-                    ) : (
-                      <>
-                        <UploadCloudIcon className='size-14 stroke-1' />
-                        <p>Upload Resume</p>
-                      </>
-                    )
-                  }
-                </div>
-                </label>
-                <input id='resume-upload' type='file' accept='.pdf' onChange={(e) => setResume(e.target.files[0])} className='hidden'/>
-                
-              </div>
-
-              <button disabled={isLoading} className='flex justify-center items-center w-full py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors'>
-                {isLoading && <LoaderCircleIcon className='animate-spin size-4 text-white' />} 
-                {isLoading ? 'Uploading...' : 'Upload Resume'}
-              </button>
-              <XIcon className='absolute top-4 right-4 hover:text-slate-6 cursor-pointer transition-colors00 text-slate-400' onClick={() => {setEditResumeId(false); setTitle('')}} />
-            </div>
-          </form>
-        )
-      }
-
-      {
-        editResumeId && (
-          <form onSubmit={editTitle} onClick={() => setEditResumeId('')}  className='fixed inset-0 bg-black/70 backdrop-blur bg-opacity-50 z-10 flex items-center justify-center'>
-            <div className='relative bg-slate-50 border shadow-md rounded-lg w-full max-w-sm p-6' onClick={e => e.stopPropagation()}>
-              <h2 className='text-xl font-bold mb-4'>Edit Resume title</h2>
-              <input value={title} onChange={(e) => setTitle(e.target.value)} type='text' placeholder='Enter resume title' className='border border-slate-200 w-full px-4 py-2 mb-4 focus:border-green-600 ring-green-600' required />
-              <button className='w-full py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors'>Update</button>
-              <XIcon className='absolute top-4 right-4 hover:text-slate-6 cursor-pointer transition-colors00 text-slate-400' onClick={() => {setEditResumeId(''); setTitle('')}} />
-            </div>
-          </form>
-        )
-      }
+      {/* Edit title modal */}
+      {editResumeId && (
+        <Modal title="Rename resume" onClose={closeEdit} onSubmit={editTitle}>
+          <input
+            value={title}
+            onChange={e => setTitle(e.target.value)}
+            type="text"
+            placeholder="New title"
+            className="border border-slate-200 w-full px-4 py-2.5 rounded-lg mb-4 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+            required
+            autoFocus
+          />
+          <button className="w-full py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-lg text-sm font-medium transition-colors">
+            Save
+          </button>
+        </Modal>
+      )}
     </div>
-  )
-}
+  );
+};
 
-export default Dashboard
+export default Dashboard;

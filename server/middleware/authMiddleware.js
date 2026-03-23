@@ -11,7 +11,7 @@ const protect = async (req, res, next) => {
             return res.json({success: false, message : 'User unauthenticated!'});
         }
 
-        const decoded = jwt.decode(token, process.env.JWT_SECRET);
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
         req.userId = decoded.userId;
         next();
     } catch (error) {
