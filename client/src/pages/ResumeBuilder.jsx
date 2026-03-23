@@ -95,19 +95,47 @@ const ResumeBuilder = () => {
     try {
       const formdata = new FormData()
       formdata.append('resumeId', resumeId)
-      formdata.append('resumeData', JSON.stringify(resumeData))
+
+      // Strip the local File object before serializing — it's sent separately
+      const dataToSend = {
+        ...resumeData,
+        personal_info: {
+          ...resumeData.personal_info,
+          image: typeof resumeData.personal_info.image === 'object'
+            ? ''
+            : resumeData.personal_info.image
+        }
+      }
+      formdata.append('resumeData', JSON.stringify(dataToSend))
 
       if (removeBackground) formdata.append('removeBackground', 'yes')
 
-      if (typeof resumeData.personal_info.image === 'object') {
+      if (resumeData.personal_info.image instanceof File) {
         formdata.append('image', resumeData.personal_info.image)
       }
 
       const { data } = await api.put('/api/resumes/update', formdata)
-      setResumeData(data.resume)
-      toast.success(data.message)
+
+      if (!data.success) {
+        toast.error(data.message)
+        return
+      }
+
+      // Merge server response but keep local state shape intact
+      setResumeData(prev => ({
+        ...prev,
+        ...data.resume,
+        personal_info: {
+          ...prev.personal_info,
+          ...data.resume.personal_info
+        },
+        experience: data.resume.experience || prev.experience,
+        education: data.resume.education || prev.education,
+        project: data.resume.project || prev.project,
+        skills: data.resume.skills || prev.skills,
+      }))
     } catch (error) {
-      toast.error('Failed to save resume')
+      throw error
     }
   }
 
@@ -237,7 +265,7 @@ const ResumeBuilder = () => {
             )}
 
             <button
-              onClick={() => toast.promise(saveResume(), { loading: 'Saving...' })}
+              onClick={() => toast.promise(saveResume(), { loading: 'Saving...', success: 'Saved!', error: 'Failed to save' })}
               className='mt-6 px-6 py-2 bg-green-600 text-white rounded'
             >
               Save Changes
